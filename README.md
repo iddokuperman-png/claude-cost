@@ -104,10 +104,36 @@ commercial term. Instead, override it locally in
 
 The report warns if the pricing table hasn't been touched in 45+ days.
 
-## Desktop widget (optional, not part of this plugin)
+## Desktop widget (macOS, optional — not part of the plugin/skill)
 
-There's also a companion macOS desktop widget with charts and an inline AI
-"where did the budget go" insight generator, built on the same parsing core
-and the same `~/.claude/cc_tracker_buckets.json` / `cc_tracker_pricing.json`
-config. It needs Python's Tk + Pillow and isn't packaged for distribution
-here — ask if you want the source.
+A companion always-available macOS widget: live charts (cost by period,
+Work/Personal split, by project, token mix), zoom, and an inline "✨ Generate"
+AI insight that turns your own sessions into ranked, dollar-estimated action
+items. Built on the exact same parsing/pricing core and the same
+`~/.claude/cc_tracker_buckets.json` / `cc_tracker_pricing.json` config as the
+CLI above, so the numbers always match.
+
+Install (macOS only, needs [Homebrew](https://brew.sh) already installed —
+the script won't install Homebrew itself, that step needs your password
+interactively):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iddokuperman-png/claude-cost/main/widget/install.sh | bash
+```
+
+or, to read the script before running it:
+
+```bash
+git clone https://github.com/iddokuperman-png/claude-cost.git
+bash claude-cost/widget/install.sh
+```
+
+What it does: installs `python-tk@3.11` via Homebrew (the system Python's
+Tk 8.5 renders the window blank on current macOS — this is the fix),
+installs Pillow for that interpreter, builds
+`~/Applications/Claude Cost Tracker.app`, and registers a LaunchAgent so it
+opens automatically every login (and opens it once immediately). Safe to
+re-run any time to update.
+
+- Stop auto-opening: `launchctl unload ~/Library/LaunchAgents/com.claude-cost.tracker.plist`
+- Uninstall: `rm -rf ~/Applications/"Claude Cost Tracker.app" ~/Library/LaunchAgents/com.claude-cost.tracker.plist`
