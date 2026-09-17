@@ -1,0 +1,5 @@
+{
+  "name": "claude-cost",
+  "description": "Report Claude Code token usage and estimated spend by day/week/month, by account, project, and conversation — plus plain-English money-saving suggestions.",
+  "version": "1.0.0"
+}

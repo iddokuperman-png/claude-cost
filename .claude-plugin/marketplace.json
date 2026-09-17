@@ -1,0 +1,13 @@
+{
+  "name": "claude-cost",
+  "owner": {
+    "name": "Iddo Kuperman"
+  },
+  "plugins": [
+    {
+      "name": "claude-cost",
+      "source": "./plugins/claude-cost",
+      "description": "Report Claude Code token usage and estimated spend by day/week/month, by account, project, and conversation — plus plain-English money-saving suggestions."
+    }
+  ]
+}
