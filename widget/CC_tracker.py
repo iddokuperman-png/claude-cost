@@ -523,32 +523,54 @@ INSIGHT_INSTRUCTION = (
 )
 
 
-def run_claude_insight(report: str, timeout: int = 120) -> str:
+# Left unspecified, `claude -p` picks up whatever model your account/org has
+# configured as default — which breaks on setups routing through a custom AI
+# proxy (seen in the wild: an inaccessible "gemini-3.8-flash-via-aiproxy[1m]"
+# alias). Pin a plain, widely-available alias instead, with a fallback and an
+# env-var escape hatch for unusual setups.
+INSIGHT_MODEL = os.environ.get("CC_TRACKER_INSIGHT_MODEL", "")
+_INSIGHT_MODEL_TRY_ORDER = ([INSIGHT_MODEL] if INSIGHT_MODEL else []) + ["sonnet", "haiku"]
+
+
+def run_claude_insight(report: str, timeout: int = 90) -> str:
     exe = (shutil.which("claude")
            or os.path.expanduser("~/.local/bin/claude"))
     if not exe or not os.path.exists(exe):
         return ("Claude CLI not found — install/authenticate `claude` to use "
                 "AI insight.\n\nRaw report:\n\n" + report)
-    try:
-        # Fresh isolated session id so this never resumes / pollutes a real
-        # conversation transcript.
-        p = subprocess.run(
-            [exe, "-p", "--output-format", "text",
-             "--session-id", str(uuid.uuid4())],
-            input=INSIGHT_INSTRUCTION + report,
-            capture_output=True, text=True, timeout=timeout,
-            cwd=str(Path.home()),
-            env={**os.environ, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"},
-        )
-        txt = (p.stdout or "").strip()
-        if p.returncode != 0 and not txt:
-            return (f"claude -p failed (exit {p.returncode}).\n"
-                    f"{(p.stderr or '').strip()[:500]}\n\nRaw report:\n\n{report}")
-        return txt or ("(empty response)\n\nRaw report:\n\n" + report)
-    except subprocess.TimeoutExpired:
-        return "AI insight timed out. Raw report:\n\n" + report
-    except Exception as e:  # noqa: BLE001
-        return f"AI insight error: {e}\n\nRaw report:\n\n{report}"
+
+    attempts = []
+    for model in dict.fromkeys(_INSIGHT_MODEL_TRY_ORDER):  # dedupe, keep order
+        try:
+            # Fresh isolated session id so this never resumes / pollutes a
+            # real conversation transcript.
+            p = subprocess.run(
+                [exe, "-p", "--output-format", "text", "--model", model,
+                 "--session-id", str(uuid.uuid4())],
+                input=INSIGHT_INSTRUCTION + report,
+                capture_output=True, text=True, timeout=timeout,
+                cwd=str(Path.home()),
+                env={**os.environ, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"},
+            )
+            txt = (p.stdout or "").strip()
+            if p.returncode == 0 and txt:
+                return txt
+            err = (p.stderr or txt or "").strip()[:300]
+            attempts.append(f"  model={model}: exit {p.returncode} — {err}")
+            # only keep trying other models if this looks like a model
+            # availability problem, not a real failure (auth, network, ...)
+            if "model" not in err.lower():
+                break
+        except subprocess.TimeoutExpired:
+            attempts.append(f"  model={model}: timed out after {timeout}s")
+        except Exception as e:  # noqa: BLE001
+            return f"AI insight error: {e}\n\nRaw report:\n\n{report}"
+
+    return ("AI insight failed for every model tried:\n" + "\n".join(attempts) +
+            "\n\nIf your org routes Claude Code through a custom model/proxy, "
+            "set CC_TRACKER_INSIGHT_MODEL to a model name your account can "
+            "actually reach, then relaunch the widget.\n\nRaw report:\n\n" +
+            report)
 
 
 # ── modern chart rendering — Pillow, anti-aliased ─────────────────────────
