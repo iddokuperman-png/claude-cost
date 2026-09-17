@@ -19,9 +19,23 @@ APP="$HOME/Applications/Claude Cost Tracker.app"
 PLIST="$HOME/Library/LaunchAgents/com.claude-cost.tracker.plist"
 
 echo "== 1/5  Homebrew =="
+# `curl | bash` runs a non-login shell, which does NOT source ~/.zprofile —
+# that's where the Homebrew installer puts its PATH setup by default on
+# Apple Silicon. So `brew` can be genuinely installed and still invisible to
+# this script. Check the two standard install locations directly before
+# giving up.
 if ! command -v brew >/dev/null 2>&1; then
-  echo "Homebrew isn't installed. This script doesn't install it for you" >&2
-  echo "(that step needs your password interactively). Install it from" >&2
+  for _b in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    if [[ -x "$_b" ]]; then
+      eval "$("$_b" shellenv)"
+      break
+    fi
+  done
+fi
+if ! command -v brew >/dev/null 2>&1; then
+  echo "Homebrew isn't installed (checked PATH, /opt/homebrew, /usr/local)." >&2
+  echo "This script doesn't install it for you (that step needs your" >&2
+  echo "password interactively). Install it from" >&2
   echo "https://brew.sh, then re-run this script." >&2
   exit 1
 fi
@@ -79,8 +93,11 @@ launchctl unload "$PLIST" >/dev/null 2>&1 || true
 launchctl load -w "$PLIST"
 
 open "$APP"
+sleep 2
+LOG="$APP/Contents/Resources/tracker.log"
 
-cat <<'DONE'
+if pgrep -f "$APP/Contents/Resources/CC_tracker.py" >/dev/null 2>&1; then
+  cat <<'DONE'
 
 Done. The widget will now open automatically every login, and is open now.
 
@@ -93,3 +110,11 @@ Neither file is part of this repo — they stay local to your machine.
 To stop auto-opening: launchctl unload ~/Library/LaunchAgents/com.claude-cost.tracker.plist
 To uninstall entirely: rm -rf ~/Applications/"Claude Cost Tracker.app" ~/Library/LaunchAgents/com.claude-cost.tracker.plist
 DONE
+else
+  echo
+  echo "The app was launched but the process isn't running a couple seconds" >&2
+  echo "later — it likely crashed on startup. Log:" >&2
+  echo >&2
+  tail -n 30 "$LOG" 2>/dev/null >&2 || echo "(no log file at $LOG)" >&2
+  exit 1
+fi
